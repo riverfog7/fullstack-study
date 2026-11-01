@@ -7,6 +7,7 @@ FastAPI와 React로 만든 작은 할 일 앱입니다. 할 일을 추가하고,
 ## 버전
 
 - `week2`: 로컬에서 프론트와 백엔드를 실행하는 과제 예제.
+- `week3`: Dockerfile, Nginx, Compose, 볼륨을 적용한 완성 예제.
 - Docker 실습을 시작할 때는 `week2` 태그에서 새 브랜치를 만듭니다.
 
 압축 파일에는 `.git/`도 포함되어 있습니다. 압축을 푼 뒤 이 디렉터리에서 Git 명령을 실행합니다.
@@ -18,6 +19,22 @@ git switch -c my-week3 week2
 ```
 
 변경한 파일이 있으면 먼저 커밋한 뒤 전환합니다. 원래 브랜치로 돌아갈 때는 `git switch main`을 사용합니다. 태그는 해당 시점의 코드 위치이며, 실제 작업은 새 브랜치에서 진행하면 됩니다.
+
+3주차에서 추가한 파일은 다음 명령으로 확인합니다.
+
+```bash
+git diff --stat week2..week3
+```
+
+## Docker로 실행
+
+Docker가 실행 중인 상태에서 저장소 루트에서 실행합니다.
+
+```bash
+docker compose up --build -d
+```
+
+[http://localhost:8080](http://localhost:8080)에서 사용합니다. 종료는 `docker compose down`입니다. 설정별 설명, 데이터 유지 확인, 자기 프로젝트에 맞추는 방법은 [3주차 실습 안내](docs/week3.md)에 있습니다.
 
 ## 준비
 
