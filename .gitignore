@@ -10,8 +10,12 @@ htmlcov/
 # Node and build output
 node_modules/
 dist/
+build/
+wheels/
 coverage/
+.vitest/
 *.tsbuildinfo
+*.local
 
 # Local configuration and data
 .env
