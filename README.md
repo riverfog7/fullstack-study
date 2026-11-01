@@ -199,4 +199,3 @@ npm create vite@latest
 - [Vite](https://vite.dev/guide/)
 - [Vitest](https://vitest.dev/guide/)
 - [pre-commit](https://pre-commit.com/)
-
