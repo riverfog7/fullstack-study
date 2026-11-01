@@ -1,3 +1,68 @@
-body {
-  margin: 0;
+:root {
+  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #1b2b2a;
+  background: #f3f5f4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:disabled, input:disabled { cursor: not-allowed; }
+button:disabled { opacity: 0.45; }
+button, input { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible {
+  outline: 3px solid #8ac8b7;
+  outline-offset: 3px;
+}
+
+.tasks-page { width: min(100% - 40px, 760px); margin: 72px auto; }
+.page-header { margin-bottom: 30px; }
+.eyebrow { margin: 0 0 10px; color: #397362; font-size: 12px; font-weight: 700; letter-spacing: 0.15em; }
+h1 { margin: 0; font-size: 38px; line-height: 1.35; letter-spacing: -0.045em; }
+.page-header > p:last-child { margin: 12px 0 0; color: #62716c; line-height: 1.7; }
+.task-panel { padding: 30px 32px 18px; background: white; border: 1px solid #e0e7e3; border-radius: 18px; box-shadow: 0 12px 40px #273f3410; }
+.task-form > label { display: block; margin-bottom: 10px; font-size: 14px; font-weight: 600; }
+.task-input-row { display: flex; gap: 10px; }
+.task-input-row input { width: 100%; min-width: 0; padding: 13px 15px; border: 1px solid #ccd8d1; border-radius: 8px; color: inherit; background: #fff; }
+.task-input-row input::placeholder { color: #97a29e; }
+.task-input-row input:disabled { background: #f6f8f7; }
+.add-button { flex-shrink: 0; padding: 0 23px; border: 0; border-radius: 8px; background: #276954; color: white; font-weight: 600; }
+.add-button:hover:not(:disabled) { background: #1e5543; }
+.input-hint { margin: 9px 0 28px; color: #84918a; font-size: 12px; }
+.list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 15px; border-bottom: 1px solid #e8ede9; }
+.task-summary { margin: 0; color: #6e7c75; font-size: 14px; }
+.task-summary strong { color: #276954; }
+.summary-separator { margin: 0 12px; color: #c2ccc6; }
+.refresh-button { border: 0; padding: 4px 0 4px 8px; background: transparent; color: #65786e; font-size: 12px; }
+.refresh-button:hover:not(:disabled) { color: #215b46; text-decoration: underline; }
+.task-list { list-style: none; margin: 0; padding: 0; }
+.task-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 70px; padding: 17px 0; border-bottom: 1px solid #edf0ee; }
+.task-check { display: flex; align-items: center; gap: 12px; min-width: 0; cursor: pointer; }
+.task-check input { flex-shrink: 0; width: 19px; height: 19px; margin: 0; accent-color: #276954; }
+.task-title { line-height: 1.65; overflow-wrap: anywhere; }
+.is-completed .task-title { color: #8c9891; text-decoration: line-through; }
+.delete-button { flex-shrink: 0; padding: 6px 9px; border: 0; border-radius: 5px; background: transparent; color: #89938e; font-size: 12px; }
+.delete-button:hover:not(:disabled) { background: #fff0ee; color: #a54737; }
+.empty-state { padding: 54px 12px 40px; text-align: center; }
+.empty-state p { margin: 0 0 8px; color: #65786c; font-weight: 500; }
+.empty-state span { color: #93a097; font-size: 13px; }
+.error-message { margin: 16px 0 0; padding: 13px 15px; border-left: 3px solid #bf6049; border-radius: 4px; color: #9a402f; background: #fff5f1; font-size: 13px; line-height: 1.7; }
+.loading-message { padding: 45px 0; color: #7a8980; text-align: center; font-size: 14px; }
+.save-status { min-height: 18px; margin: 12px 0 0; color: #7c8f83; font-size: 12px; text-align: right; }
+
+@media (max-width: 520px) {
+  .tasks-page { width: min(100% - 28px, 760px); margin: 38px auto; }
+  h1 { font-size: 32px; }
+  .page-header > p:last-child { font-size: 14px; }
+  .task-panel { padding: 22px 18px 14px; border-radius: 12px; }
+  .task-input-row input { padding: 12px; font-size: 14px; }
+  .add-button { padding: 0 18px; font-size: 14px; }
+  .task-title { font-size: 14px; }
+  .task-summary { font-size: 13px; }
+  .summary-separator { margin: 0 8px; }
 }
