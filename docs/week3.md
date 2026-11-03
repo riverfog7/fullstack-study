@@ -81,11 +81,27 @@ Compose가 만드는 기본 네트워크에서 Nginx는 `backend:8000`으로 백
 ### 백엔드만 먼저 확인
 
 ```bash
-docker build -t study-backend ./backend
-docker run --rm --name study-api -p 8000:8000 study-backend
+docker build -t study-backend:week3 ./backend
+docker run --rm --name study-api -p 8000:8000 study-backend:week3
 ```
 
 [http://localhost:8000/api/health](http://localhost:8000/api/health)를 확인한 뒤 `Ctrl+C`로 종료합니다. 프론트의 `backend` 이름은 Compose 네트워크에서 사용하므로 전체 연결은 Compose로 확인합니다.
+
+`study-backend`는 이미지 이름이고 `week3`는 이 이미지에 붙인 태그입니다. `--rm`은 종료한 컨테이너를 자동 삭제합니다.
+
+### 이미지 태그와 업로드
+
+`docker build -t study-backend:week3 ./backend`는 빌드한 이미지에 `study-backend:week3`라는 이름을 붙입니다. 태그를 생략하면 `latest`를 사용합니다. `latest`도 직접 붙이는 태그 이름이며 최신 버전을 자동으로 찾아 주지는 않습니다.
+
+Docker Hub처럼 이미지를 저장하고 내려받는 서비스를 레지스트리라고 합니다. 다음은 Docker Hub에 올릴 때의 예시입니다. `myname`은 자신의 계정이나 조직 이름으로 바꿉니다.
+
+```bash
+docker login
+docker tag study-backend:week3 docker.io/myname/study-backend:week3
+docker push docker.io/myname/study-backend:week3
+```
+
+`docker tag`는 같은 이미지를 가리키는 업로드용 이름을 추가합니다. `docker push`는 그 이름의 이미지를 저장소에 올립니다. `docker.io/myname/study-backend:week3`에서 `docker.io`는 Docker Hub, `myname/study-backend`는 저장소, `week3`는 태그입니다. 업로드에는 해당 저장소에 쓸 권한이 필요합니다.
 
 ## 캐시와 멀티 스테이지
 
@@ -214,6 +230,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 - [멀티 스테이지](https://docs.docker.com/build/building/multi-stage/)
 - [uv와 Docker](https://docs.astral.sh/uv/guides/integration/docker/)
 - [curl 명령과 옵션](https://curl.se/docs/manpage.html)
+- [이미지 이름, 태그와 업로드](https://docs.docker.com/get-started/docker-concepts/building-images/build-tag-and-publish-an-image)
 - [Nginx 입문](https://nginx.org/en/docs/beginners_guide.html)
 - [Compose 네트워크](https://docs.docker.com/compose/how-tos/networking/)
 - [Compose 시작 순서](https://docs.docker.com/compose/how-tos/startup-order/)
