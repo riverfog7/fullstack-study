@@ -38,6 +38,8 @@ docker compose up --build -d
 
 백엔드 이미지에서는 `uv sync --locked --no-dev --no-editable`로 앱을 설치합니다. 원본 `src/`를 참조하지 않는 설치이므로, 실행 이미지에는 설치된 `.venv/`를 복사합니다. `pyproject.toml`의 빌드 백엔드는 `uv_build`입니다.
 
+백엔드의 준비 상태는 컨테이너 안에서 `curl -f http://127.0.0.1:8000/api/health`로 확인합니다. 실행 이미지에 curl을 설치하며, 검사가 성공한 뒤 Nginx를 시작합니다.
+
 ## 준비
 
 - Python 3.12 이상과 [uv](https://docs.astral.sh/uv/getting-started/installation/)

@@ -13,6 +13,9 @@ RUN uv sync --locked --no-dev --no-editable
 
 # 실행 단계: 설치된 앱과 의존성만 가져온다.
 FROM python:3.12-slim-bookworm AS runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

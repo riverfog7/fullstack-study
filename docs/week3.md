@@ -66,8 +66,9 @@ Compose가 만드는 기본 네트워크에서 Nginx는 `backend:8000`으로 백
 3. `uv sync --locked --no-dev --no-install-project`로 외부 의존성만 설치합니다.
 4. `src/`와 `README.md`를 복사합니다.
 5. `uv sync --locked --no-dev --no-editable`로 앱을 가상환경에 설치합니다.
-6. 빌드 단계와 같은 Python 기반 이미지에 설치된 `.venv/`를 복사합니다.
-7. `backend --host 0.0.0.0 --port 8000`으로 실행합니다.
+6. 실행용 Python 이미지에 상태 검사에 사용할 curl을 설치합니다.
+7. 빌드 단계와 같은 Python 기반 이미지에 설치된 `.venv/`를 복사합니다.
+8. `backend --host 0.0.0.0 --port 8000`으로 실행합니다.
 
 `--locked`는 lockfile 일치를 확인합니다. `--no-dev`는 테스트 도구 등 개발 의존성을 제외합니다. `--no-install-project`는 아직 소스가 없는 단계에서 자기 패키지 설치를 미룹니다.
 
@@ -116,7 +117,20 @@ docker compose --progress plain build frontend
 
 `APP_ENV=production`과 `APP_DATABASE_PATH=/data/tasks.db`를 백엔드에 전달합니다. 예제에서는 프로덕션 모드의 FastAPI 문서를 비활성화하고 자동 reload를 사용하지 않습니다. 로컬 `backend/.env`를 이미지에 복사하지 않습니다.
 
-백엔드 healthcheck는 `/api/health`에 요청을 보냅니다. 프론트의 `depends_on: condition: service_healthy`는 백엔드가 준비된 뒤 Nginx를 시작하도록 합니다. 서비스가 시작됐다는 것과 요청을 받을 준비가 됐다는 것을 구분합니다.
+백엔드 healthcheck는 같은 컨테이너 안에서 curl로 `/api/health`에 요청을 보냅니다.
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
+  interval: 5s
+  timeout: 3s
+  retries: 5
+  start_period: 5s
+```
+
+`CMD`는 뒤의 명령을 직접 실행하는 형식입니다. `curl -f`는 HTTP 오류 응답을 실패로 처리합니다. 연결하지 못해도 검사에 실패하며, 정상 응답을 받으면 성공합니다. 앱이 준비되는 동안에는 검사에 실패할 수 있습니다. `start_period`는 초기 준비 시간의 실패를 집계하지 않게 합니다.
+
+프론트의 `depends_on: condition: service_healthy`는 백엔드가 준비된 뒤 Nginx를 시작하도록 합니다. 서비스가 시작됐다는 것과 요청을 받을 준비가 됐다는 것을 구분합니다.
 
 자주 쓰는 명령:
 
@@ -199,6 +213,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 - [빌드 캐시](https://docs.docker.com/build/cache/optimize/)
 - [멀티 스테이지](https://docs.docker.com/build/building/multi-stage/)
 - [uv와 Docker](https://docs.astral.sh/uv/guides/integration/docker/)
+- [curl 명령과 옵션](https://curl.se/docs/manpage.html)
 - [Nginx 입문](https://nginx.org/en/docs/beginners_guide.html)
 - [Compose 네트워크](https://docs.docker.com/compose/how-tos/networking/)
 - [Compose 시작 순서](https://docs.docker.com/compose/how-tos/startup-order/)
