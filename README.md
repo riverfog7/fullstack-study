@@ -36,6 +36,8 @@ docker compose up --build -d
 
 [http://localhost:8080](http://localhost:8080)에서 사용합니다. 종료는 `docker compose down`입니다. 설정별 설명, 데이터 유지 확인, 자기 프로젝트에 맞추는 방법은 [3주차 실습 안내](docs/week3.md)에 있습니다.
 
+백엔드 이미지에서는 `uv sync --locked --no-dev --no-editable`로 앱을 설치합니다. 원본 `src/`를 참조하지 않는 설치이므로, 실행 이미지에는 설치된 `.venv/`를 복사합니다. `pyproject.toml`의 빌드 백엔드는 `uv_build`입니다.
+
 ## 준비
 
 - Python 3.12 이상과 [uv](https://docs.astral.sh/uv/getting-started/installation/)

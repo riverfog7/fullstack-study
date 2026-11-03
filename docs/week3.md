@@ -65,12 +65,13 @@ Compose가 만드는 기본 네트워크에서 Nginx는 `backend:8000`으로 백
 2. `pyproject.toml`과 `uv.lock`을 복사합니다.
 3. `uv sync --locked --no-dev --no-install-project`로 외부 의존성만 설치합니다.
 4. `src/`와 `README.md`를 복사합니다.
-5. `uv build --wheel`로 패키지를 만듭니다.
-6. `uv pip install --no-deps dist/*.whl`로 패키지를 가상환경에 설치합니다.
-7. 같은 Python 기반 이미지에 설치된 `.venv/`를 복사합니다.
-8. `backend --host 0.0.0.0 --port 8000`으로 실행합니다.
+5. `uv sync --locked --no-dev --no-editable`로 앱을 가상환경에 설치합니다.
+6. 빌드 단계와 같은 Python 기반 이미지에 설치된 `.venv/`를 복사합니다.
+7. `backend --host 0.0.0.0 --port 8000`으로 실행합니다.
 
-`--locked`는 lockfile 일치를 확인합니다. `--no-dev`는 테스트 도구 등 개발 의존성을 제외합니다. `--no-install-project`는 아직 소스가 없는 단계에서 자기 패키지 설치를 미룹니다. wheel 설치 시 `--no-deps`를 사용하는 이유는 앞에서 lockfile의 실행 의존성을 이미 설치했기 때문입니다.
+`--locked`는 lockfile 일치를 확인합니다. `--no-dev`는 테스트 도구 등 개발 의존성을 제외합니다. `--no-install-project`는 아직 소스가 없는 단계에서 자기 패키지 설치를 미룹니다.
+
+두 번째 `uv sync`의 `--no-editable`은 앱 코드를 가상환경에 설치해 원본 `src/`를 참조하지 않게 합니다. 이때 `pyproject.toml`에 지정한 `uv_build` 빌드 백엔드를 사용합니다.
 
 빌드와 실행 스테이지의 Python 버전과 OS 계열, `.venv` 경로를 맞춥니다. 설치된 앱을 복사하므로 런타임에 원래 `src/` 경로가 필요하지 않습니다.
 
@@ -155,13 +156,13 @@ docker compose down -v
 
 ### main.py로 실행하는 프로젝트
 
-이 예제는 `src/` 패키지를 빌드해 설치하고 CLI로 실행합니다. 자기 프로젝트가 `main.py`에 `app = FastAPI()`를 두는 형태라면 다음처럼 실행 명령을 맞출 수 있습니다.
+이 예제는 `uv sync --no-editable`로 `src/` 패키지를 설치하고 CLI로 실행합니다. 자기 프로젝트가 `main.py`에 `app = FastAPI()`를 두는 형태라면 다음처럼 실행 명령을 맞출 수 있습니다.
 
 ```dockerfile
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-자기 프로젝트를 패키지로 설치하지 않는 경우에는 runtime 스테이지에도 `main.py`와 사용하는 모듈을 복사해야 합니다. 이때 예제의 wheel 빌드·설치 단계를 그대로 사용할 필요는 없습니다. 외부 의존성을 설치한 `.venv`와 실제 소스를 실행 이미지에 함께 넣고, 실행에 사용하는 Uvicorn도 의존성에 포함합니다.
+자기 프로젝트를 패키지로 설치하지 않는 경우에는 runtime 스테이지에도 `main.py`와 사용하는 모듈을 복사해야 합니다. 외부 의존성을 설치한 `.venv`와 실제 소스를 실행 이미지에 함께 넣고, 실행에 사용하는 Uvicorn도 의존성에 포함합니다.
 
 내부 폴더 구조나 Typer CLI까지 이 예제와 같게 바꿀 필요는 없습니다.
 
