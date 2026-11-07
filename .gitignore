@@ -26,6 +26,11 @@ data/
 *.db-shm
 *.db-wal
 
+# SSH keys and local deployment trust files
+*.pem
+*.key
+ec2_known_hosts
+
 # Editor and operating system files
 .DS_Store
 .idea/

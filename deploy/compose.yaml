@@ -1,0 +1,31 @@
+name: study-app
+
+services:
+  backend:
+    image: docker.io/${DOCKERHUB_USERNAME}/study-backend:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DATABASE_PATH: /data/tasks.db
+    expose:
+      - "8000"
+    volumes:
+      - task-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  frontend:
+    image: docker.io/${DOCKERHUB_USERNAME}/study-frontend:${IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  task-data:
