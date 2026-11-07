@@ -8,6 +8,7 @@ FastAPI와 React로 만든 작은 할 일 앱입니다. 할 일을 추가하고,
 
 - `week2`: 로컬에서 프론트와 백엔드를 실행하는 과제 예제.
 - `week3`: Dockerfile, Nginx, Compose, 볼륨을 적용한 완성 예제.
+- `week4`: Docker Hub 이미지, EC2 배포 설정, GitHub Actions CI/CD 예제.
 - Docker 실습을 시작할 때는 `week2` 태그에서 새 브랜치를 만듭니다.
 
 압축 파일에는 `.git/`도 포함되어 있습니다. 압축을 푼 뒤 이 디렉터리에서 Git 명령을 실행합니다.
@@ -25,6 +26,19 @@ git switch -c my-week3 week2
 ```bash
 git diff --stat week2..week3
 ```
+
+4주차 실습을 시작할 때는 `git switch -c my-week4 week3`으로 새 브랜치를 만듭니다. 완성 코드와 설정은 `week4` 태그에 있습니다.
+
+## EC2 배포와 GitHub Actions
+
+4주차에서는 이미지를 Docker Hub에 올리고 Ubuntu EC2에서 받아 실행합니다. [4주차 실습 안내](docs/week4.md)에 수동 배포, GitHub Secrets 준비, CI/CD 연결 명령이 있습니다.
+
+- `deploy/compose.yaml`: 업로드한 이미지를 사용하는 서버 설정.
+- `deploy/deploy.sh`: EC2에서 실행하는 배포·응답 확인 명령.
+- `deploy/remote.sh`: Actions runner에서 EC2로 파일과 명령을 전달하는 코드.
+- `.github/workflows/deploy.yml`: 검사, 이미지 업로드, 배포 순서.
+
+자동 배포는 Docker Hub와 EC2 설정을 등록한 뒤 사용합니다. 수업 시연의 임시 SSH 접근 범위와 시연 후 복구 방법은 안내 문서에 설명했습니다. 기존 로컬 실행은 아래와 같습니다.
 
 ## Docker로 실행
 
