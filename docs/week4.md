@@ -1,381 +1,448 @@
 # 4주차: GitHub Actions와 EC2 배포
 
-3주차에 만든 Docker 이미지를 EC2에서 실행합니다. 직접 배포한 뒤 같은 작업을 GitHub Actions로 자동화합니다. 강의 예제를 참고해 각자 만든 프로젝트에 적용합니다.
+3주차에 만든 앱을 EC2에서 실행하고, 같은 배포 작업을 GitHub Actions로 연결합니다. 예제의 이름과 검사 명령은 각자 만든 프로젝트에 맞게 바꾸면 됩니다.
 
-명령은 Bash 기준입니다. macOS와 Linux는 터미널, Windows는 Git Bash나 WSL을 사용합니다. 모든 로컬 명령은 별도 설명이 없으면 저장소 루트에서 실행합니다.
+명령은 **macOS·Linux의 Bash 터미널 기준**입니다. Windows에서는 키를 실제로 저장한 폴더에서 시작하고 [AWS의 OpenSSH 접속 안내](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-linux-inst-ssh.html)를 참고합니다. 아래 `~/Downloads`가 Windows의 다운로드 폴더와 같다는 뜻은 아닙니다. 각 코드 위에 실행할 컴퓨터와 폴더를 표시했습니다.
 
-## 1. 실행 장소와 파일
+## 1. 이번에 사용하는 파일
 
-| 장소 | 실행하는 작업 |
+| 파일 | 역할 |
 | --- | --- |
-| 내 컴퓨터 | 코드 수정, 수동 이미지 빌드·업로드, 처음 EC2 설정 |
-| GitHub Actions runner | 검사, 이미지 빌드·업로드, EC2에 배포 명령 전달 |
-| EC2 | Docker 이미지 받기, 컨테이너 실행, 서비스 응답 |
-| Docker Hub | 빌드한 이미지를 저장하고 전달 |
+| 루트의 `compose.yaml` | 3주차 로컬 실행용. `build:`로 이미지를 만듭니다. |
+| `deploy/compose.yaml` | EC2 배포용. `image:`에 적힌 이미지를 받습니다. |
+| `deploy/.env.example` | Docker Hub 계정명과 이미지 태그의 예시입니다. |
+| `deploy/deploy.sh` | EC2에서 실행하는 배포 명령입니다. |
+| `.github/workflows/deploy.yml` | 검사, 이미지 게시, EC2 배포 순서입니다. |
 
-이번 주 추가 파일입니다.
+수정된 완성 코드는 현재 `main`에 있습니다. `week2`, `week3`, `week4` 태그로 각 주차의 기존 시점도 확인할 수 있습니다. 실습에서는 **자기 공개 GitHub 저장소의 `main`**에 설정을 추가합니다. 배포 파일을 먼저 커밋·push해 두어야 EC2에서 clone할 때 함께 내려받습니다.
 
-```text
-project/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml
-├── deploy/
-│   ├── compose.yaml
-│   ├── .env.example
-│   ├── deploy.sh
-│   └── remote.sh
-├── backend/
-└── frontend/
+이번 예제는 공개 GitHub 저장소, 공개 Docker Hub 이미지 두 개, Ubuntu 24.04 LTS의 x86_64 EC2 한 대를 사용합니다. 데이터는 공개해도 되는 테스트 내용으로 준비합니다.
+
+## 2. Docker Hub 준비
+
+### 2.1 이미지 저장소 만들기
+
+Docker Hub에 로그인하고 **My Hub → Repositories → Create repository**에서 두 저장소를 만듭니다.
+
+- `study-backend`: Public
+- `study-frontend`: Public
+
+이 문서의 `myname`은 자신의 **Docker Hub 계정명**으로 바꿉니다. GitHub 사용자 이름과 같을 필요는 없습니다.
+
+### 2.2 PAT 발급과 로그인
+
+PAT는 Docker Hub에서 비밀번호 대신 사용할 로그인 토큰입니다.
+
+1. Docker Home에 로그인합니다.
+2. 프로필 메뉴에서 **Account settings → Personal access tokens**를 엽니다.
+3. **Generate new token**을 누릅니다.
+4. 설명에 `study-deploy`, 만료일에 `30 days`, 권한에 **Repo Read & Write**를 선택합니다.
+5. 생성된 토큰을 복사해 보관합니다. 전체 토큰은 생성 직후에만 볼 수 있습니다.
+
+내 컴퓨터의 터미널에서 실행합니다.
+
+```bash
+docker login -u myname
 ```
 
-- 루트의 `compose.yaml`: 3주차 로컬 실습용입니다. `build:`로 이미지를 만듭니다.
-- `deploy/compose.yaml`: EC2 배포용입니다. `image:`에 적힌 이미지를 받습니다.
-- `deploy/deploy.sh`: EC2에서 실행하는 배포 명령입니다. 수동·자동 배포가 같은 파일을 사용합니다.
-- `deploy/remote.sh`: Actions runner에서 SSH 접속 정보와 파일을 준비하고 EC2에 명령을 보냅니다.
+`Password:`에 토큰을 붙여넣고 Enter를 누릅니다. 입력한 글자가 화면에 보이지 않아도 정상입니다. 같은 토큰을 뒤에서 GitHub의 `DOCKERHUB_TOKEN`에 등록합니다.
 
-완성 코드는 `week4` 태그에 있습니다. 3주차 상태에서 직접 추가하려면 변경 사항을 먼저 커밋하고 `git switch -c my-week4 week3`으로 시작합니다. 이 문서의 배포 파일은 4주차에서 추가하는 파일입니다.
-
-## 2. 사전 준비
-
-- 3주차 프로젝트가 `docker compose up --build -d`로 정상 실행되어야 합니다.
-- 자기 GitHub 저장소와 `main` 브랜치를 준비합니다.
-- Docker Hub 계정을 만들고 로그인합니다.
-- AWS 계정 로그인과 계정의 요금·크레딧 조건을 확인합니다.
-
-예제는 Ubuntu 24.04 LTS, x86_64 EC2 한 대와 공개 Docker Hub 이미지 두 개를 사용합니다. Nginx가 웹 요청을 받고 FastAPI로 API 요청을 전달하는 구조는 3주차와 같습니다. 이 앱은 사용자 인증이 없는 실습용 앱이므로 공개해도 되는 테스트 데이터만 사용합니다.
+[Docker 공식 PAT 안내](https://docs.docker.com/security/access-tokens/personal-access-tokens/)
 
 ## 3. 내 컴퓨터에서 이미지 업로드
 
-### 3.1 Docker Hub 저장소
+### 3.1 백엔드
 
-Docker Hub에서 자신의 계정 아래에 `study-backend`, `study-frontend` 저장소를 만들고 공개 상태로 설정합니다. 예제의 EC2는 공개 이미지를 받으므로 Docker Hub 로그인 정보가 필요하지 않습니다.
-
-내 컴퓨터의 저장소 루트에서 다음 변수를 설정합니다. `myname`은 실제 Docker Hub 계정명으로 바꿉니다.
+내 컴퓨터의 저장소 루트에서 시작합니다.
 
 ```bash
-export DOCKERHUB_USERNAME=myname
-export IMAGE_TAG=week4-demo
-docker login --username "$DOCKERHUB_USERNAME"
+cd backend
+docker build --platform linux/amd64 -t study-backend .
+docker tag study-backend myname/study-backend:week4-demo
+docker push myname/study-backend:week4-demo
 ```
 
-로그인에는 Docker Hub에서 발급한 Personal Access Token을 사용합니다. 토큰에는 이미지 업로드에 필요한 Read & Write 권한을 주고, 비밀번호 입력 위치에 토큰을 입력합니다. 명령 뒤에 토큰 문자열을 직접 적거나 Git에 저장하지 않습니다.
+첫 줄은 폴더 이동입니다. `build`는 이미지 생성, `tag`는 Docker Hub에 올릴 이름 추가, `push`는 업로드입니다. `--platform linux/amd64`는 Apple Silicon Mac에서도 이번 수업의 x86_64 EC2에서 실행할 이미지를 만들기 위해 사용합니다.
 
-### 3.2 백엔드 이미지
+### 3.2 프론트엔드
+
+위 명령을 실행한 backend 폴더에서 이어서 실행합니다.
 
 ```bash
-docker build --platform linux/amd64 \
-  -t "docker.io/$DOCKERHUB_USERNAME/study-backend:$IMAGE_TAG" ./backend
-docker push "docker.io/$DOCKERHUB_USERNAME/study-backend:$IMAGE_TAG"
+cd ../frontend
+docker build --platform linux/amd64 -t study-frontend .
+docker tag study-frontend myname/study-frontend:week4-demo
+docker push myname/study-frontend:week4-demo
+cd ..
 ```
 
-### 3.3 프론트 이미지
+Docker Hub에서 두 저장소의 **Tags**에 `week4-demo`가 생겼는지 확인합니다. 마지막 `cd ..`는 저장소 루트로 돌아오는 명령입니다.
 
-```bash
-docker build --platform linux/amd64 \
-  -t "docker.io/$DOCKERHUB_USERNAME/study-frontend:$IMAGE_TAG" ./frontend
-docker push "docker.io/$DOCKERHUB_USERNAME/study-frontend:$IMAGE_TAG"
+## 4. 배포용 Compose 준비
+
+3주차의 Compose 설정을 이어 사용합니다. 내 컴퓨터에서 `deploy` 폴더를 만들고 기존 `compose.yaml`을 참고해 `deploy/compose.yaml`을 작성합니다. **이미지 준비 방법을 `build:`에서 `image:`로 바꾸며, 포트·환경 변수·볼륨·healthcheck·시작 순서는 유지합니다.**
+
+다음은 제공 예제의 전체 배포용 Compose입니다.
+
+```yaml
+name: study-app
+
+services:
+  backend:
+    image: ${DOCKERHUB_USERNAME}/study-backend:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DATABASE_PATH: /data/tasks.db
+    expose:
+      - "8000"
+    volumes:
+      - task-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/study-frontend:${IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  task-data:
 ```
 
-Apple Silicon Mac에서도 x86_64 EC2에서 실행할 수 있도록 `--platform linux/amd64`를 사용합니다. Docker Hub에서 두 저장소에 `week4-demo` 태그가 생겼는지 확인합니다.
-
-## 4. EC2 준비
-
-### 4.1 인스턴스 생성
-
-AWS 콘솔에서 리전을 하나 정하고 EC2 인스턴스를 만듭니다.
-
-| 설정 | 예제 기준 |
+| 설정 | 배포할 때의 역할 |
 | --- | --- |
-| 이름 | `study-app` |
-| AMI | Ubuntu Server 24.04 LTS, 64-bit x86 |
-| 인스턴스 유형 | x86_64 유형 한 대, 예: `t3.micro` |
-| SSH 사용자 | `ubuntu` |
-| 키 페어 | 관리용 키를 생성하고 개인 키를 보관 |
-| 네트워크 | 인터넷 연결이 가능한 퍼블릭 서브넷, 공인 IPv4 할당 |
-| 스토리지 | 실습에 필요한 용량을 확인하고 생성 |
+| `name: study-app` | 수동·자동 배포에서 같은 Compose 프로젝트와 볼륨 이름을 사용합니다. |
+| `image` | Docker Hub에서 받을 이미지와 버전을 지정합니다. |
+| `restart: unless-stopped` | 중지하지 않은 서비스가 종료되면 다시 실행하도록 설정합니다. |
+| 백엔드 `environment` | 앱에 production 설정과 DB 파일 경로를 전달합니다. |
+| 백엔드 `expose` | 백엔드가 사용하는 컨테이너 포트를 표시합니다. EC2 외부에 포트를 공개하지는 않습니다. |
+| 백엔드 `volumes` | `task-data`를 `/data`에 연결해 DB 파일을 보관합니다. |
+| 백엔드 `healthcheck` | 실제 API 응답을 확인해 준비 상태를 판단합니다. |
+| 프론트 `ports` | EC2의 8080을 Nginx의 80에 연결합니다. |
+| 프론트 `depends_on` | 백엔드가 healthy 상태가 된 뒤 프론트를 시작합니다. |
+| 최상위 `volumes` | `task-data`라는 named volume을 선언합니다. |
 
-인스턴스 유형을 골랐다는 이유만으로 무료가 되는 것은 아닙니다. 콘솔의 현재 요금, 계정 플랜, 크레딧을 확인합니다. 이 예제는 서버에서 이미지를 빌드하지 않습니다.
+`APP_DATABASE_PATH`, `/api/health`, 이미지 이름은 예제 앱의 값입니다. 자기 앱의 환경 변수·데이터 경로·API 주소로 바꿉니다. 프론트의 `nginx.conf`도 자기 API 전달 경로와 맞춥니다.
 
-보안 그룹의 초기 인바운드 규칙은 다음과 같습니다.
-
-| 포트 | 용도 | 소스 |
-| --- | --- | --- |
-| TCP 22 | 내 컴퓨터에서 SSH 접속 | My IP |
-| TCP 8080 | 브라우저에서 웹 앱 접속 | 실습 공개 범위, 예: `0.0.0.0/0` |
-
-백엔드 8000번 포트는 컨테이너 네트워크 안에서 사용하므로 외부 인바운드 규칙을 추가하지 않습니다. `0.0.0.0/0`은 모든 IPv4 주소를 뜻합니다.
-
-### 4.2 서버의 호스트 키 확인
-
-관리용 개인 키를 내 컴퓨터의 `~/.ssh/week4-admin.pem`에 보관합니다. EC2 공인 IPv4 주소를 아래 변수에 넣습니다.
-
-```bash
-export EC2_HOST=203.0.113.10
-chmod 600 ~/.ssh/week4-admin.pem
-ssh-keyscan -T 10 -t ed25519 "$EC2_HOST" > ec2_known_hosts
-ssh-keygen -lf ec2_known_hosts
-```
-
-`203.0.113.10`은 문서용 예시 주소입니다. 실제 인스턴스 주소로 바꿉니다.
-
-AWS 콘솔에서 인스턴스를 선택한 뒤 **Actions → Monitor and troubleshoot → Get system log**를 엽니다. `BEGIN SSH HOST KEY FINGERPRINTS` 구간의 ED25519 SHA256 지문과 위 명령의 지문을 대조합니다. **두 지문이 일치한 경우에만** 다음 접속을 진행합니다. `ssh-keyscan`으로 받은 값만으로는 서버의 신원을 확인할 수 없습니다.
-
-AWS의 Key pairs 화면에 보이는 지문은 사용자 키 페어의 지문입니다. 여기서 비교하는 서버 호스트 키와 다릅니다. 처음 확인한 `ec2_known_hosts`는 이후 수동 접속과 GitHub Secret 등록에 사용합니다.
-
-### 4.3 SSH 접속
-
-내 컴퓨터에서 실행합니다.
-
-```bash
-ssh -i ~/.ssh/week4-admin.pem \
-  -o UserKnownHostsFile=ec2_known_hosts \
-  -o StrictHostKeyChecking=yes \
-  ubuntu@"$EC2_HOST"
-```
-
-이제 입력하는 명령은 EC2에서 실행됩니다. 접속을 끝내고 내 컴퓨터로 돌아오려면 `exit`를 입력합니다.
-
-### 4.4 Docker와 Compose 설치
-
-새 Ubuntu 24.04 EC2 안에서 실행합니다. 공식 Docker apt 저장소를 추가합니다.
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-  -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-sudo tee /etc/apt/sources.list.d/docker.sources > /dev/null <<EOF
-Types: deb
-URIs: https://download.docker.com/linux/ubuntu
-Suites: noble
-Components: stable
-Architectures: amd64
-Signed-By: /etc/apt/keyrings/docker.asc
-EOF
-
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
-  docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable --now docker
-sudo usermod -aG docker ubuntu
-exit
-```
-
-위의 SSH 명령으로 다시 접속한 뒤 확인합니다. 그룹 변경은 새 로그인부터 적용됩니다.
-
-```bash
-docker version
-docker compose version
-```
-
-`docker` 그룹은 Docker 데몬을 조작할 수 있는 강한 권한을 줍니다. 이 실습에서는 `ubuntu` 계정으로 서버를 관리합니다. 이를 제한된 권한의 운영 계정으로 보지는 않습니다.
-
-## 5. EC2에 수동 배포
-
-### 5.1 배포 파일 복사
-
-내 컴퓨터의 저장소 루트에서 실행합니다. EC2 접속 상태라면 먼저 `exit`로 돌아옵니다.
-
-```bash
-ssh -i ~/.ssh/week4-admin.pem \
-  -o UserKnownHostsFile=ec2_known_hosts \
-  -o StrictHostKeyChecking=yes \
-  ubuntu@"$EC2_HOST" 'mkdir -p ~/study-app'
-
-scp -i ~/.ssh/week4-admin.pem \
-  -o UserKnownHostsFile=ec2_known_hosts \
-  -o StrictHostKeyChecking=yes \
-  deploy/compose.yaml deploy/deploy.sh deploy/.env.example \
-  ubuntu@"$EC2_HOST":study-app/
-```
-
-서버에는 배포 파일과 설정만 복사합니다. Python·Node 프로젝트 소스는 이미 빌드한 이미지 안에 들어 있습니다.
-
-### 5.2 이미지 이름과 버전 설정
-
-EC2에 다시 SSH 접속하고 실행합니다.
-
-```bash
-cd ~/study-app
-cp .env.example .env
-nano .env
-```
-
-`.env`를 실제 Docker Hub 계정명으로 수정합니다.
+`deploy/.env.example`은 다음과 같이 준비합니다.
 
 ```dotenv
 DOCKERHUB_USERNAME=myname
 IMAGE_TAG=week4-demo
 ```
 
-이 값은 Compose 파일의 `${DOCKERHUB_USERNAME}`, `${IMAGE_TAG}` 자리에 들어갑니다. `.env`에 썼다는 이유로 모든 값이 자동으로 앱의 환경 변수가 되는 것은 아닙니다. 앱에 전달할 값은 Compose의 `environment:`에 적습니다.
+`${...}`에는 같은 폴더의 `.env` 값이 들어갑니다. `.env`는 Compose가 이미지 이름을 구성할 때 읽는 파일이며, 앱으로 전달할 환경 변수는 `environment:`에 적습니다. 실제 `.env`, PAT, 개인키를 Git에 넣지 않습니다.
 
-### 5.3 실행과 확인
-
-EC2의 `~/study-app/`에서 실행합니다.
+내 컴퓨터의 저장소 루트에서 변경 파일을 확인하고 배포 설정을 올립니다.
 
 ```bash
-bash deploy.sh
+git status
+git add deploy
+git commit -m "build: add deployment"
+git push
 ```
 
-`deploy.sh`는 설정 확인, 이미지 받기, 컨테이너 갱신, API 응답 확인을 순서대로 실행합니다.
+[Compose 환경 변수](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/) · [Compose services](https://docs.docker.com/reference/compose-file/services/)
 
-```bash
-docker compose --env-file .env config --quiet
-docker compose --env-file .env pull
-docker compose --env-file .env up -d --force-recreate --wait --wait-timeout 90
-docker compose --env-file .env ps
-curl --fail http://127.0.0.1:8080/api/health
-```
+## 5. 키를 준비한 뒤 EC2 만들기
 
-- `--wait`는 healthcheck가 있는 백엔드의 정상 상태를 기다립니다. 프론트는 실행 상태를 기다립니다.
-- 마지막 HTTP 요청은 EC2의 8080번 포트에서 Nginx를 거쳐 FastAPI까지 응답하는지 확인합니다.
-- `--force-recreate`로 두 컨테이너를 같이 갱신합니다. Nginx가 변경된 백엔드 컨테이너 주소를 다시 찾게 합니다. 교체 중에는 잠깐 접속이 끊길 수 있습니다.
-- Compose의 `name: study-app`으로 프로젝트 이름을 고정합니다. 수동·자동 배포가 같은 `study-app_task-data` 볼륨을 사용하므로 컨테이너 교체 후에도 DB를 유지합니다. 이 볼륨은 해당 EC2 안에 저장됩니다.
+### 5.1 접속용 키 먼저 만들기
 
-내 컴퓨터의 브라우저에서 `http://<EC2 공인 IP>:8080`에 접속합니다. 할 일을 하나 추가해둡니다.
+AWS 콘솔에서 EC2를 열고 사용할 리전을 정합니다. 이 예제는 서울 리전을 사용합니다.
 
-## 6. GitHub Actions로 검사 실행
+1. 왼쪽 메뉴의 **Network & Security → Key pairs**를 엽니다.
+2. **Create key pair**를 누릅니다.
+3. 이름은 `study-key`, 유형은 **RSA**, 개인키 파일 형식은 **.pem**으로 선택합니다.
+4. **Create key pair**를 누르면 `study-key.pem`이 내 컴퓨터에 다운로드됩니다.
 
-완성된 workflow는 [.github/workflows/deploy.yml](../.github/workflows/deploy.yml)에 있습니다. `main`에 push하거나 Actions 화면에서 **Run workflow**를 누르면 시작합니다.
+이 파일을 SSH 접속에 사용합니다. 개인키는 다시 다운로드할 수 없으므로 보관하고 Git에 올리지 않습니다. 다음 단계에서 **방금 만든 키를 인스턴스에 선택한 뒤** 인스턴스를 시작합니다.
 
-`test` job은 다음 순서입니다.
+### 5.2 프리 티어 표시를 확인하고 인스턴스 설정
 
-1. 해당 커밋의 코드를 runner에 가져옵니다.
-2. uv 0.13.4, Python 3.12, Node.js 24를 준비합니다.
-3. `uv sync --locked --project backend`와 `npm --prefix frontend ci`로 의존성을 설치합니다.
-4. `pre-commit run --all-files`로 기존 공통 검사, 백엔드 테스트, 프론트 검사·테스트를 실행합니다.
-5. 프론트를 빌드하고 배포 파일의 문법과 Compose 설정을 확인합니다.
+**Instances → Launch instances**를 엽니다.
 
-pre-commit 안에서 이미 pytest·ESLint·TypeScript·Vitest를 실행하므로 같은 테스트를 별도 step으로 다시 실행하지 않습니다. Actions의 검사 로그에서 각 hook의 결과를 확인합니다.
-
-완성 workflow에는 이미지 업로드와 배포도 들어 있으므로, 전체 실행 전에 다음 절의 Secrets를 준비합니다. 강의에서 CI 부분만 먼저 작성할 때는 `test` job까지만 작성해 실행한 뒤 `publish`, `deploy`를 이어 붙입니다.
-
-## 7. 자동 배포 연결
-
-### 7.1 CI 전용 SSH 키
-
-내 컴퓨터에서 CI에 사용할 별도 키를 만듭니다. 기존 키 파일이 있다면 덮어쓰지 말고 다른 이름을 사용합니다.
-
-```bash
-ssh-keygen -t ed25519 -C week4-github-actions \
-  -f ~/.ssh/week4-deploy -N ''
-```
-
-공개 키를 관리용 접속으로 EC2에 등록합니다.
-
-```bash
-cat ~/.ssh/week4-deploy.pub | ssh -i ~/.ssh/week4-admin.pem \
-  -o UserKnownHostsFile=ec2_known_hosts \
-  -o StrictHostKeyChecking=yes \
-  ubuntu@"$EC2_HOST" \
-  'umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys'
-```
-
-개인 키 `~/.ssh/week4-deploy`는 GitHub Secret에 넣고, 공개 키 `.pub`는 EC2에서 접속을 허용하는 데 사용합니다. 서버의 신원을 확인하는 `ec2_known_hosts`와는 용도가 다릅니다.
-
-### 7.2 GitHub Secrets
-
-자신의 저장소에서 **Settings → Secrets and variables → Actions → New repository secret**으로 다음 값을 등록합니다.
-
-| 이름 | 넣을 값 |
+| 설정 | 예제에서 선택할 값 |
 | --- | --- |
-| `DOCKERHUB_USERNAME` | Docker Hub 계정명 |
-| `DOCKERHUB_TOKEN` | Docker Hub Read & Write Personal Access Token |
-| `EC2_HOST` | 현재 EC2 공인 IPv4 주소 또는 고정한 DNS 이름 |
-| `EC2_USER` | `ubuntu` |
-| `EC2_SSH_KEY` | `~/.ssh/week4-deploy` 개인 키 전체, BEGIN/END 줄 포함 |
-| `EC2_KNOWN_HOSTS` | 지문을 검증한 `ec2_known_hosts` 파일 전체 |
+| 이름 | `study-app` |
+| AMI | Ubuntu Server 24.04 LTS, 64-bit x86 |
+| Instance type | **프리 티어 사용 가능(Free tier eligible)** 표시가 있는 x86_64 유형 |
+| Key pair | 먼저 만들어 둔 **`study-key` 선택** |
+| Public IP | 자동 할당 활성화 |
+| Storage | 프리 티어 적용 조건과 용량을 확인한 gp3 볼륨 |
 
-`EC2_KNOWN_HOSTS`는 Secret의 `EC2_HOST`와 정확히 같은 IP 또는 이름으로 만들어야 합니다. workflow 안에서 새 호스트 키를 자동으로 신뢰하지 않습니다. 사용자 이름과 주소가 모두 비밀인 것은 아니지만, 예제에서는 연결 설정을 같은 화면에서 등록합니다.
+예를 들어 `t3.micro`에 프리 티어 표시가 있다면 선택합니다. 계정마다 적용 기간과 크레딧 조건이 다르므로 **콘솔 표시와 잔여 혜택을 확인합니다.** 이번 자료의 이미지는 `linux/amd64`로 만들었으므로 x86_64 유형을 사용합니다.
 
-### 7.3 Actions가 SSH로 접속할 수 있는 범위
+**Network settings → Edit**에서 보안 그룹 규칙을 추가합니다.
 
-내 컴퓨터에서 SSH가 성공해도 Actions runner에서 접속할 수 있다는 뜻은 아닙니다. **My IP 규칙은 내 컴퓨터만 허용합니다.** 표준 GitHub-hosted runner의 출발 IP는 실행마다 달라질 수 있습니다.
+| 유형·포트 | Source | 용도 |
+| --- | --- | --- |
+| SSH · TCP 22 | My IP | 내 컴퓨터의 SSH 접속 |
+| Custom TCP · 8080 | Anywhere-IPv4 (`0.0.0.0/0`) | 브라우저의 웹 앱 접속 |
 
-이 수업의 자동 배포 시연은 다음 조건으로 진행합니다.
+**키 페어 `study-key`, 인스턴스 유형, 네트워크 설정을 확인한 뒤 Launch instance를 누릅니다.** 생성 후 인스턴스를 선택해 Public IPv4 address를 복사합니다.
 
-1. SSH 개인 키, 검증한 서버 호스트 키, GitHub Secrets를 준비합니다.
-2. **시연 시간에만** TCP 22번의 소스를 `0.0.0.0/0`으로 임시 변경합니다. 이는 모든 IPv4 주소에서 SSH 연결을 시도할 수 있게 하는 설정입니다. 키 인증을 사용하고 암호 로그인을 켜지 않습니다.
-3. 배포가 끝나면 즉시 22번 규칙을 My IP로 되돌립니다.
+자동 배포 시연 때는 22번 Source도 잠시 **Anywhere-IPv4**로 바꿉니다. GitHub runner의 IP가 내 컴퓨터와 다르기 때문입니다. 시연 뒤에는 **My IP로 복구**합니다. 복구 후에는 hosted runner의 SSH 배포가 차단됩니다. 백엔드 8000번은 컨테이너 사이에서 쓰므로 추가하지 않습니다.
 
-**My IP로 되돌린 뒤에는 일반 hosted runner의 자동 SSH 배포가 다시 차단됩니다.** 이 넓은 접근 범위를 상시 운영 설정으로 유지하지 않습니다. 지속적인 자동 배포에는 고정된 송신 IP의 runner 등 접속 범위를 제한할 구성이 필요합니다. 이 예제는 AWS 키를 사용하거나 보안 그룹을 자동으로 변경하지 않습니다.
+[키 페어 생성](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html) · [인스턴스 시작과 프리 티어 조건](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-launch-instance-wizard.html)
 
-### 7.4 검사, 이미지 업로드, 배포
+### 5.3 다운로드한 키로 SSH 접속
 
-workflow의 세 job은 `test`, `publish`, `deploy`입니다. `needs`로 순서를 연결합니다.
-
-| job | 작업 |
-| --- | --- |
-| `test` | 기존 검사와 프론트 빌드, 배포 파일 문법 확인 |
-| `publish` | 성공한 커밋으로 두 이미지를 만들고 Docker Hub에 업로드 |
-| `deploy` | EC2에 Compose·배포 스크립트·이미지 설정을 복사하고 실행 |
-
-두 이미지의 `IMAGE_TAG`는 같은 `${{ github.sha }}`입니다. 여기에는 workflow를 시작한 커밋의 전체 ID가 들어갑니다. EC2는 그 버전의 이미지 두 개를 받습니다. `publish`는 `main`에서만 진행합니다.
-
-`concurrency`와 `cancel-in-progress: false`는 이미 진행 중인 배포를 중간에 취소하거나 같은 서버에 동시에 배포하는 일을 막습니다. 새 실행들이 쌓이면 대기 중인 실행이 더 새로운 실행으로 대체될 수 있습니다.
-
-`remote.sh`는 runner의 임시 폴더에 키와 `known_hosts`를 만들고 `StrictHostKeyChecking=yes`로 접속합니다. 복사할 때마다 EC2의 같은 `~/study-app/`을 사용합니다. 종료 시 runner의 임시 키 파일은 지웁니다.
-
-## 8. 전체 흐름 확인
-
-1. 화면 문구를 바꾸고 짧은 Conventional Commit 메시지로 커밋합니다.
-2. `main`에 push합니다.
-3. Actions의 `test`, `publish`, `deploy` 결과를 확인합니다.
-4. Docker Hub에서 두 저장소에 같은 커밋 태그가 생겼는지 확인합니다.
-5. 웹을 새로고침해 화면 변경과 이전에 저장한 할 일을 확인합니다.
-6. 시연을 마치면 SSH 인바운드를 My IP로 복구합니다.
-
-검사나 이미지 업로드가 실패하면 `deploy` job은 실행되지 않습니다. 서버 갱신 도중 실패한 경우에는 이미 일부 컨테이너가 바뀌었을 수 있습니다. 이 예제는 자동 롤백을 구현하지 않습니다. 로그를 확인하고 정상 동작했던 이미지 태그로 `.env`를 바꾼 뒤 `bash deploy.sh`로 다시 실행할 수 있습니다.
-
-## 9. 오류 확인
-
-| 증상 | 확인할 곳 |
-| --- | --- |
-| `test` 실패 | Actions에서 실패한 hook·step의 로그 |
-| Docker Hub 업로드 거부 | 계정명, PAT의 쓰기 권한, 저장소 이름 |
-| `no matching manifest` | 이미지 플랫폼과 EC2 아키텍처가 모두 amd64인지 |
-| SSH timeout | EC2 공인 IP, 보안 그룹 22번의 출발 IP 허용 범위 |
-| `Permission denied (publickey)` | `EC2_USER`, 개인 키, 서버의 `authorized_keys` |
-| 호스트 키 확인 실패 | 현재 서버의 지문을 다시 검증하고 `EC2_KNOWN_HOSTS` 갱신 |
-| `unhealthy` 또는 API 응답 실패 | EC2의 `docker compose logs backend frontend` |
-| 웹 접속 실패 | 보안 그룹 8080번, `docker compose ps`, 공인 IP |
-
-EC2에서 실행하는 기본 확인 명령입니다.
+내 컴퓨터에서 키를 저장한 폴더로 이동합니다. 아래 `203.0.113.10`은 실제 EC2의 공인 IP로 바꿉니다.
 
 ```bash
-cd ~/study-app
-docker compose ps --all
-docker compose logs --tail 100 backend frontend
-curl --fail http://127.0.0.1:8080/api/health
+cd ~/Downloads
+chmod 400 study-key.pem
+ssh -i study-key.pem ubuntu@203.0.113.10
 ```
 
-일반 공인 IPv4 주소는 인스턴스를 중지했다가 시작하면 바뀔 수 있습니다. 바뀌면 브라우저 접속 주소와 `EC2_HOST`, 검증한 `EC2_KNOWN_HOSTS`를 함께 갱신합니다. 호스트 키 불일치를 해결하려고 확인 기능을 끄지 않습니다.
+- `chmod 400`: macOS·Linux에서 내 계정만 키 파일을 읽게 합니다.
+- `-i study-key.pem`: 사용할 개인키 파일을 고릅니다.
+- `ubuntu@...`: EC2의 `ubuntu` 사용자로 접속합니다.
 
-## 10. 과제와 정리
+첫 접속의 서버 지문은 EC2의 **Actions → Monitor and troubleshoot → Get system log**에 있는 ED25519 SHA256 지문과 확인하고 `yes`를 입력합니다. 접속 후의 명령은 EC2에서 실행됩니다. `exit`를 입력하면 내 컴퓨터로 돌아옵니다.
 
-자기 프로젝트에 Docker 이미지 저장소, EC2 배포 설정, GitHub Actions 검사를 적용합니다. 코드 수정 후 검사와 이미지 업로드, 배포 결과를 확인하고 저장소에 남깁니다. 토큰·개인 키·실제 `.env`를 커밋하지 않습니다.
+### 5.4 Docker와 Git 설치
 
-실습을 계속할 때는 컨테이너와 데이터를 유지할 수 있습니다. 실습을 마쳤으면 AWS 콘솔에서 인스턴스와 남은 리소스를 확인해 정리합니다. EC2 중지 후에도 보관한 스토리지 등의 비용이 남을 수 있습니다. EC2 종료 시 삭제되는 스토리지에는 이 앱의 DB도 있으므로 필요한 데이터는 먼저 따로 보관합니다.
+새 Ubuntu 24.04 EC2 안에서 실행합니다. 이 예제는 Ubuntu 패키지를 사용합니다.
 
-다음 주에는 이번에 콘솔로 만든 인프라를 Terraform으로 구성합니다.
+```bash
+sudo apt update
+sudo apt install docker.io
+sudo apt install docker-compose-v2 git curl
+sudo usermod -aG docker ubuntu
+exit
+```
 
-## 공식 문서
+설치 확인 질문에는 `Y`를 입력합니다. `usermod`는 `ubuntu`가 Docker를 사용할 수 있게 그룹에 추가하는 명령입니다. 그룹 변경을 적용하기 위해 로그아웃했습니다.
 
-- [EC2 시작하기](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EC2_GetStarted.html)
-- [EC2 접속 전 준비와 호스트 키 확인](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connection-prereqs-general.html)
-- [EC2 보안 그룹 규칙](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-rules-reference.html)
-- [Docker Ubuntu 설치](https://docs.docker.com/engine/install/ubuntu/)
-- [Docker Hub 토큰](https://docs.docker.com/security/access-tokens/)
-- [Docker Compose pull](https://docs.docker.com/reference/cli/docker/compose/pull/)
-- [Docker Compose up](https://docs.docker.com/reference/cli/docker/compose/up/)
-- [GitHub Actions workflow 문법](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
-- [GitHub Actions Secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
-- [Docker 이미지 게시](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images)
-- [GitHub-hosted runner의 IP 주소](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#ip-addresses)
-- [uv의 GitHub Actions 연동](https://docs.astral.sh/uv/guides/integration/github/)
-- [Ubuntu 24.04 runner의 설치 도구](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)
+내 컴퓨터에서 다시 접속합니다.
+
+```bash
+ssh -i study-key.pem ubuntu@203.0.113.10
+```
+
+EC2에서 설치 결과를 확인합니다.
+
+```bash
+docker version
+docker compose version
+```
+
+[Ubuntu Docker 패키지](https://packages.ubuntu.com/noble/docker.io) · [Compose v2 패키지](https://packages.ubuntu.com/noble/docker-compose-v2)
+
+## 6. EC2에서 처음 배포하기
+
+### 6.1 자기 GitHub 저장소 clone
+
+내 컴퓨터에서 준비한 `deploy/`를 자기 공개 GitHub 저장소에 커밋·push해 둡니다. GitHub의 **Code → Local → HTTPS**에서 주소를 복사합니다.
+
+접속해 둔 EC2 터미널로 돌아와 실행합니다. URL은 자기 저장소 주소로 바꿉니다.
+
+```bash
+cd ~
+git clone https://github.com/myname/my-project.git study-app
+cd study-app/deploy
+cp .env.example .env
+nano .env
+```
+
+`study-app`은 EC2에 만들 폴더 이름입니다. 이후 배포 명령은 `~/study-app/deploy`에서 실행합니다. GitHub에서는 설정과 배포 스크립트를 받고, 실행할 이미지는 Docker Hub에서 받습니다.
+
+### 6.2 이미지 계정과 태그 설정
+
+`.env`의 계정명을 자기 값으로 바꿉니다.
+
+```dotenv
+DOCKERHUB_USERNAME=myname
+IMAGE_TAG=week4-demo
+```
+
+nano에서 **Ctrl+O → Enter**로 저장하고 **Ctrl+X**로 닫습니다. 여기에 Docker Hub 비밀번호나 PAT를 적지 않습니다.
+
+### 6.3 컨테이너 실행과 확인
+
+EC2의 `~/study-app/deploy`에서 한 줄씩 실행합니다.
+
+```bash
+docker compose pull
+docker compose down
+docker compose up -d --wait
+docker compose ps
+curl -f http://localhost:8080/api/health
+```
+
+| 명령 | 하는 일 |
+| --- | --- |
+| `pull` | Docker Hub에서 두 이미지를 받습니다. |
+| `down` | 기존 컨테이너와 기본 네트워크를 정리합니다. 최초 배포에는 기존 컨테이너가 없을 수 있습니다. |
+| `up -d --wait` | 백그라운드로 실행하고 백엔드 healthy와 프론트 실행 상태를 기다립니다. |
+| `ps` | 컨테이너 상태를 봅니다. |
+| `curl -f ...` | Nginx를 거친 API 응답을 확인합니다. HTTP 오류이면 실패합니다. |
+
+예제의 정상 응답은 `{"status":"ok"}`입니다. 자기 앱의 상태 API로 바꿉니다. 내 컴퓨터의 브라우저에서 `http://공인IP:8080`에 접속하고 기능이 동작하는지 확인합니다.
+
+위 명령을 모아 둔 파일이 `deploy.sh`입니다. 같은 폴더에서 `bash deploy.sh`로 실행할 수 있습니다. `set -e`는 앞선 명령이 실패하면 진행을 멈추게 합니다.
+
+이 예제는 기존 컨테이너를 내리고 다시 올리므로 **배포 중 잠깐 접속이 끊깁니다.** `down`에 `-v`가 없으므로 DB를 담은 `study-app_task-data` 볼륨은 유지됩니다. 볼륨은 이 EC2의 디스크에 있습니다.
+
+[Compose 실행](https://docs.docker.com/reference/cli/docker/compose/up/) · [Compose 종료](https://docs.docker.com/reference/cli/docker/compose/down/)
+
+## 7. GitHub Actions로 검사하기
+
+Workflow 위치는 [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)입니다. `main`에 push하면 실행되며 **Actions → Test and deploy → Run workflow**로 직접 실행할 수도 있습니다. 직접 실행할 때도 `main`을 선택합니다.
+
+`test` job은 코드를 가져오고 uv·Python·Node를 설치한 뒤 기존 검사 명령을 실행합니다. **아래는 이 예제 프로젝트의 설정입니다.** 다른 프로젝트는 폴더와 검사 명령을 맞추면 됩니다.
+
+| 작업 | working-directory | 명령 |
+| --- | --- | --- |
+| 백엔드 의존성 설치 | `backend` | `uv sync --locked` |
+| 프론트 의존성 설치 | `frontend` | `npm ci` |
+| 공통·백엔드·프론트 검사 | `backend` | `uv run pre-commit run --all-files` |
+| 프론트 빌드 | `frontend` | `npm run build` |
+
+`working-directory`는 명령을 실행할 폴더입니다. `uv sync --locked`는 lockfile과 프로젝트 설정의 일치를 확인해 설치합니다. `npm ci`도 lockfile에 기록된 버전으로 설치합니다. pre-commit은 저장소 루트의 설정을 사용해 pytest·ESLint·TypeScript·Vitest를 실행합니다.
+
+강의의 **4.4는 실패 로그를 읽는 설명용 예시**입니다. 정상 코드를 일부러 망가뜨리거나 로컬 검사를 건너뛸 필요가 없습니다. 실패했다면 **Actions → 실행 항목 → test → Run checks**에서 오류 위치와 이유를 확인한 뒤 수정 커밋을 push합니다.
+
+[Workflow 문법](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax) · [pre-commit 실행](https://pre-commit.com/#pre-commit-run)
+
+## 8. 자동 배포 연결하기
+
+### 8.1 GitHub Secrets 등록
+
+저장소의 **Settings → Secrets and variables → Actions → New repository secret**에서 Name과 Secret을 입력하고 Add secret을 누릅니다.
+
+| Name | Secret에 넣을 값 |
+| --- | --- |
+| `DOCKERHUB_USERNAME` | 자기 Docker Hub 계정명 |
+| `DOCKERHUB_TOKEN` | 앞서 만든 Repo Read & Write PAT |
+| `EC2_HOST` | EC2의 현재 공인 IPv4 |
+| `EC2_SSH_KEY` | 다운로드한 `study-key.pem`의 전체 내용 |
+| `EC2_FINGERPRINT` | 서버 지문 중 `SHA256:...` 값 |
+
+`EC2_SSH_KEY`는 내 컴퓨터의 키 파일을 편집기로 열어 BEGIN과 END 줄까지 전부 복사합니다. 새 키를 만들거나 서버의 `authorized_keys`를 따로 편집하지 않습니다.
+
+`EC2_FINGERPRINT`는 이미 접속한 EC2에서 확인합니다.
+
+```bash
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+출력 중 `SHA256:`로 시작하는 값만 복사합니다. 개인키와 서버 지문은 서로 다른 값입니다. 서버 사용자는 workflow의 `username: ubuntu`에 적으므로 별도의 Secret을 만들지 않습니다.
+
+### 8.2 검사한 커밋을 이미지 태그로 사용
+
+`publish`는 `test`가 성공한 뒤 실행합니다. `IMAGE_TAG`에 `${{ github.sha }}`를 넣어 검사한 커밋의 전체 ID를 사용합니다. 두 이미지는 같은 태그로 Docker Hub에 올라갑니다.
+
+```yaml
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  IMAGE_TAG: ${{ github.sha }}
+```
+
+`deploy`에도 같은 두 `env` 값을 선언합니다. Job 사이에서 환경 변수가 자동 공유되는 것은 아닙니다. SSH Action의 `envs`는 이 값을 EC2 셸에 전달합니다.
+
+### 8.3 EC2에서 같은 커밋의 파일 사용
+
+SSH Action의 `script`는 EC2에서 실행합니다.
+
+```yaml
+script: |
+  set -e
+  cd ~/study-app
+  git fetch origin main
+  git checkout ${{ github.sha }}
+  cd deploy
+  bash deploy.sh
+```
+
+`fetch`로 새 커밋을 받고, 검사한 커밋의 파일로 전환합니다. `${{ github.sha }}`는 workflow에서 치환하는 표현이므로 터미널에 그대로 입력하지 않습니다. 서버의 저장소 파일을 직접 수정하는 대신 내 컴퓨터에서 수정하고 커밋합니다.
+
+전달한 환경 변수는 EC2의 `.env` 값보다 우선합니다. 자동 배포는 `.env`의 내용을 바꾸지 않습니다. 이후 수동 배포를 한다면 `.env`의 `IMAGE_TAG`를 배포하려는 태그로 맞춥니다.
+
+### 8.4 코드 변경 후 확인
+
+검사와 배포 설정을 처음 추가했다면 내 컴퓨터에서 커밋하고 push합니다.
+
+```bash
+git add .github
+git commit -m "ci: add deployment"
+git push
+```
+
+자기 앱의 화면에서 확인하기 쉬운 문구를 하나 바꾸고 커밋·push합니다. Actions의 `test`, `publish`, `deploy`가 모두 성공한 뒤 EC2 웹 화면에 변경이 반영됐는지 확인합니다. 예제의 4.4 실패 코드를 일부러 만들 필요는 없습니다.
+
+[GitHub Secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets) · [SSH Action](https://github.com/appleboy/ssh-action)
+
+## 9. 문제가 생겼을 때
+
+| 실패한 곳 | 먼저 확인할 내용 |
+| --- | --- |
+| `test` | 실패한 검사 명령과 오류 메시지 |
+| `publish` | Docker Hub 계정명, PAT 권한, 이미지 이름 |
+| SSH 연결 | EC2 주소, 개인키, 서버 지문, 현재 인바운드 규칙 |
+| 웹 접속 | 8080 포트와 컨테이너 실행 상태 |
+
+EC2의 `~/study-app/deploy`에서 상태와 로그를 확인합니다.
+
+```bash
+docker compose ps
+docker compose logs
+```
+
+이 예제에는 자동 롤백이 없습니다. 서버 교체 도중 실패했다면 앱이 멈춰 있을 수 있으므로 로그에서 원인을 고친 뒤 다시 배포합니다.
+
+## 10. 실습 후 AWS 리소스 정리
+
+먼저 변경된 화면과 성공한 Actions 실행을 README에 남깁니다. 출석 증빙을 위해 EC2를 계속 켜둘 필요는 없습니다.
+
+### 10.1 어떤 항목에서 비용이 생기는가
+
+| 항목 | 과금 기준 |
+| --- | --- |
+| EC2 | 서버가 실행 중인 시간 |
+| EBS 디스크 | 할당한 용량과 보관 기간 |
+| 스냅샷 | 별도로 만든 백업 데이터 보관 |
+| 공인 IPv4 | AWS 공인 IP를 사용하거나 보유한 시간 |
+| 데이터 전송 | 전송량과 전송 경로 |
+
+프리 티어 적용 여부와 잔여 크레딧은 자기 계정에서 확인합니다. T 계열의 Unlimited 모드를 사용하면 CPU 사용량에 따라 초과 크레딧 요금이 생길 수 있습니다. `docker compose down`은 컨테이너를 내릴 뿐 EC2를 종료하지 않습니다.
+
+### 10.2 EC2 인스턴스 종료
+
+1. 필요한 화면과 데이터를 저장합니다.
+2. EC2 콘솔에서 실습한 리전을 고르고 **Instances**에서 `study-app`을 선택합니다.
+3. **Storage**에서 Volume ID와 **Delete on termination**을 확인합니다. Yes이면 종료 시 함께 삭제하고, No이면 볼륨이 남습니다.
+4. **Instance state → Terminate (delete) instance**를 선택하고 확인 창에서 종료합니다.
+5. 상태가 **terminated**인지 확인합니다. 종료된 항목이 잠시 목록에 남을 수 있습니다.
+
+**Stop**은 다시 켤 수 있는 중지이며 EBS 등의 비용은 남습니다. **Terminate**는 인스턴스 삭제입니다. 함께 삭제된 디스크의 DB와 파일도 사라집니다.
+
+### 10.3 남은 디스크와 고정 IP 정리
+
+같은 리전에서 **실습용으로 만든 리소스만** 확인합니다.
+
+| 리소스 | 확인과 정리 순서 |
+| --- | --- |
+| EBS 볼륨 | **Volumes**에서 기록한 Volume ID 검색. 남은 볼륨이 Available이면 **Actions → Delete volume**, 확인 창에서 `delete` 입력 후 Delete. |
+| 스냅샷 | 직접 만든 경우 **Snapshots**에서 실습 백업 선택. **Actions → Delete snapshot**, 확인 후 Delete. |
+| Elastic IP | 별도 할당한 경우 **Elastic IPs**에서 선택. 연결 중이면 Disassociate로 해제한 뒤 **Actions → Release Elastic IP addresses → Release**. |
+
+기본 자동 할당 공인 IPv4는 인스턴스 종료와 함께 반납됩니다. 별도로 할당한 Elastic IP는 연결만 해제해도 계정에 남으므로 반납까지 해야 합니다. 볼륨을 삭제해도 따로 만든 스냅샷은 남습니다.
+
+### 10.4 청구 내역 확인
+
+**Billing and Cost Management → Bills**에서 이번 달을 선택합니다. **Charges by service**에서 비용이 표시된 서비스와 실습 리전을 펼쳐 확인합니다.
+
+리소스를 삭제해도 이미 사용한 요금은 남습니다. 청구 화면 반영에는 시간이 걸릴 수 있으므로 이후 갱신된 내역도 확인합니다. 서버를 계속 사용할 계획이면 남는 비용을 확인하고 임시로 넓힌 SSH 인바운드를 My IP로 복구합니다.
+
+[EC2 종료](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html) · [EBS 삭제](https://docs.aws.amazon.com/ebs/latest/userguide/ebs-deleting-volume.html) · [스냅샷 삭제](https://docs.aws.amazon.com/ebs/latest/userguide/ebs-deleting-snapshot.html) · [Elastic IP 반납](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-instance-addressing-eips-releasing.html) · [요금 확인](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/getting-viewing-bill.html)

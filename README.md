@@ -9,6 +9,7 @@ FastAPI와 React로 만든 작은 할 일 앱입니다. 할 일을 추가하고,
 - `week2`: 로컬에서 프론트와 백엔드를 실행하는 과제 예제.
 - `week3`: Dockerfile, Nginx, Compose, 볼륨을 적용한 완성 예제.
 - `week4`: Docker Hub 이미지, EC2 배포 설정, GitHub Actions CI/CD 예제.
+- `week4-revised`: 키 생성 순서, 프리 티어 선택, 전체 배포 설정을 반영한 이번 수정본.
 - Docker 실습을 시작할 때는 `week2` 태그에서 새 브랜치를 만듭니다.
 
 압축 파일에는 `.git/`도 포함되어 있습니다. 압축을 푼 뒤 이 디렉터리에서 Git 명령을 실행합니다.
@@ -27,18 +28,17 @@ git switch -c my-week3 week2
 git diff --stat week2..week3
 ```
 
-4주차 실습을 시작할 때는 `git switch -c my-week4 week3`으로 새 브랜치를 만듭니다. 완성 코드와 설정은 `week4` 태그에 있습니다.
+4주차에서 직접 설정을 추가하려면 `week3` 시점의 코드를 참고합니다. 수정된 완성 코드는 현재 `main`과 `week4-revised` 태그에 있으며 `week4` 태그는 기존 강의 시점을 남겨 둡니다. Actions 실습에서는 자기 공개 GitHub 저장소의 `main`에 설정을 커밋·push합니다.
 
 ## EC2 배포와 GitHub Actions
 
-4주차에서는 이미지를 Docker Hub에 올리고 Ubuntu EC2에서 받아 실행합니다. [4주차 실습 안내](docs/week4.md)에 수동 배포, GitHub Secrets 준비, CI/CD 연결 명령이 있습니다.
+4주차에서는 이미지를 Docker Hub에 올리고 Ubuntu 24.04의 x86_64 EC2에서 실행합니다. 인스턴스 유형은 콘솔에서 **프리 티어 사용 가능** 표시가 있는 것으로 선택합니다. [4주차 실습 안내](docs/week4.md)에 PAT 발급, 키 먼저 만들기, 인스턴스에 키 선택, SSH 접속, 배포용 Compose 전체 설정, 자동 배포와 AWS 정리 절차가 있습니다.
 
 - `deploy/compose.yaml`: 업로드한 이미지를 사용하는 서버 설정.
 - `deploy/deploy.sh`: EC2에서 실행하는 배포·응답 확인 명령.
-- `deploy/remote.sh`: Actions runner에서 EC2로 파일과 명령을 전달하는 코드.
 - `.github/workflows/deploy.yml`: 검사, 이미지 업로드, 배포 순서.
 
-자동 배포는 Docker Hub와 EC2 설정을 등록한 뒤 사용합니다. 수업 시연의 임시 SSH 접근 범위와 시연 후 복구 방법은 안내 문서에 설명했습니다. 기존 로컬 실행은 아래와 같습니다.
+EC2에는 자기 공개 GitHub 저장소를 `~/study-app`으로 clone합니다. 배포는 `~/study-app/deploy`에서 실행하며, 수동 배포의 `deploy.sh`를 자동 배포에서도 사용합니다. 배포용 Compose는 기존 포트·환경 변수·볼륨·healthcheck·시작 순서를 유지하고 `build:`를 `image:`로 바꿉니다. 자동 배포는 GitHub Secrets 다섯 개를 등록한 뒤 사용합니다. 시연 때 바꾼 SSH 인바운드는 종료 후 My IP로 복구합니다. 기존 로컬 실행은 아래와 같습니다.
 
 ## Docker로 실행
 
