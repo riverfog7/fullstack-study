@@ -108,7 +108,7 @@ jobs:
           envs: DOCKERHUB_USERNAME,IMAGE_TAG
           script: |
             set -e
-            cd ~/study-app
+            cd ~/fullstack-study
             git fetch origin main
             git checkout ${{ github.sha }}
             cd deploy
