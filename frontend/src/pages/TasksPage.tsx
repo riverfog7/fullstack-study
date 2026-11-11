@@ -12,7 +12,7 @@ export function TasksPage() {
     <main className="tasks-page">
       <header className="page-header">
         <p className="eyebrow">MY TASKS</p>
-        <h1>할 일 목록</h1>
+        <h1>할 일 목록 12345678</h1>
         <p>해야 할 일을 적고, 끝난 일은 체크해 보세요.</p>
       </header>
 
