@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# EC2의 ~/study-app/deploy에서 실행합니다.
+# EC2의 ~/fullstack-study/deploy에서 실행합니다.
 set -e
 
 docker compose pull

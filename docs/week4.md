@@ -14,7 +14,7 @@
 | `deploy/deploy.sh` | EC2에서 실행하는 배포 명령입니다. |
 | `.github/workflows/deploy.yml` | 검사, 이미지 게시, EC2 배포 순서입니다. |
 
-수정된 완성 코드는 현재 `main`에 있습니다. `week2`, `week3`, `week4` 태그로 각 주차의 기존 시점도 확인할 수 있습니다. 실습에서는 **자기 공개 GitHub 저장소의 `main`**에 설정을 추가합니다. 배포 파일을 먼저 커밋·push해 두어야 EC2에서 clone할 때 함께 내려받습니다.
+실습에서는 **자기 공개 GitHub 저장소의 `main`**에 설정을 추가합니다. 배포 파일을 먼저 커밋·push해 두어야 EC2에서 clone할 때 함께 내려받습니다.
 
 이번 예제는 공개 GitHub 저장소, 공개 Docker Hub 이미지 두 개, Ubuntu 24.04 LTS의 x86_64 EC2 한 대를 사용합니다. 데이터는 공개해도 되는 테스트 내용으로 준비합니다.
 
@@ -249,13 +249,13 @@ docker compose version
 
 ```bash
 cd ~
-git clone https://github.com/myname/my-project.git study-app
-cd study-app/deploy
+git clone https://github.com/myname/my-project.git fullstack-study
+cd fullstack-study/deploy
 cp .env.example .env
 nano .env
 ```
 
-`study-app`은 EC2에 만들 폴더 이름입니다. 이후 배포 명령은 `~/study-app/deploy`에서 실행합니다. GitHub에서는 설정과 배포 스크립트를 받고, 실행할 이미지는 Docker Hub에서 받습니다.
+`fullstack-study`는 EC2에 만들 폴더 이름이며, workflow의 접속 경로와 맞춥니다. 이후 배포 명령은 `~/fullstack-study/deploy`에서 실행합니다. GitHub에서는 설정과 배포 스크립트를 받고, 실행할 이미지는 Docker Hub에서 받습니다.
 
 ### 6.2 이미지 계정과 태그 설정
 
@@ -270,7 +270,7 @@ nano에서 **Ctrl+O → Enter**로 저장하고 **Ctrl+X**로 닫습니다. 여�
 
 ### 6.3 컨테이너 실행과 확인
 
-EC2의 `~/study-app/deploy`에서 한 줄씩 실행합니다.
+EC2의 `~/fullstack-study/deploy`에서 한 줄씩 실행합니다.
 
 ```bash
 docker compose pull
@@ -327,17 +327,10 @@ Workflow 위치는 [`.github/workflows/deploy.yml`](../.github/workflows/deploy.
 | `DOCKERHUB_TOKEN` | 앞서 만든 Repo Read & Write PAT |
 | `EC2_HOST` | EC2의 현재 공인 IPv4 |
 | `EC2_SSH_KEY` | 다운로드한 `study-key.pem`의 전체 내용 |
-| `EC2_FINGERPRINT` | 서버 지문 중 `SHA256:...` 값 |
 
 `EC2_SSH_KEY`는 내 컴퓨터의 키 파일을 편집기로 열어 BEGIN과 END 줄까지 전부 복사합니다. 새 키를 만들거나 서버의 `authorized_keys`를 따로 편집하지 않습니다.
 
-`EC2_FINGERPRINT`는 이미 접속한 EC2에서 확인합니다.
-
-```bash
-ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
-```
-
-출력 중 `SHA256:`로 시작하는 값만 복사합니다. 개인키와 서버 지문은 서로 다른 값입니다. 서버 사용자는 workflow의 `username: ubuntu`에 적으므로 별도의 Secret을 만들지 않습니다.
+현재 workflow는 위 네 개의 Secret을 사용합니다. 서버 사용자는 `username: ubuntu`에 적으므로 별도의 Secret을 만들지 않습니다.
 
 ### 8.2 검사한 커밋을 이미지 태그로 사용
 
@@ -358,7 +351,7 @@ SSH Action의 `script`는 EC2에서 실행합니다.
 ```yaml
 script: |
   set -e
-  cd ~/study-app
+  cd ~/fullstack-study
   git fetch origin main
   git checkout ${{ github.sha }}
   cd deploy
@@ -389,10 +382,10 @@ git push
 | --- | --- |
 | `test` | 실패한 검사 명령과 오류 메시지 |
 | `publish` | Docker Hub 계정명, PAT 권한, 이미지 이름 |
-| SSH 연결 | EC2 주소, 개인키, 서버 지문, 현재 인바운드 규칙 |
+| SSH 연결 | EC2 주소, 개인키, 현재 인바운드 규칙 |
 | 웹 접속 | 8080 포트와 컨테이너 실행 상태 |
 
-EC2의 `~/study-app/deploy`에서 상태와 로그를 확인합니다.
+EC2의 `~/fullstack-study/deploy`에서 상태와 로그를 확인합니다.
 
 ```bash
 docker compose ps

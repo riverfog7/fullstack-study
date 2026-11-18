@@ -4,31 +4,30 @@ FastAPI와 React로 만든 작은 할 일 앱입니다. 할 일을 추가하고,
 
 강사가 프로젝트를 정리하는 한 가지 예시입니다. 스터디 참가자는 각자 만든 프로젝트를 계속 사용하고, 필요한 구조와 설정을 참고하면 됩니다.
 
-## 버전
+## 주차별 안내
 
-- `week2`: 로컬에서 프론트와 백엔드를 실행하는 과제 예제.
-- `week3`: Dockerfile, Nginx, Compose, 볼륨을 적용한 완성 예제.
-- `week4`: Docker Hub 이미지, EC2 배포 설정, GitHub Actions CI/CD 예제.
-- `week4-revised`: 키 생성 순서, 프리 티어 선택, 전체 배포 설정을 반영한 이번 수정본.
-- Docker 실습을 시작할 때는 `week2` 태그에서 새 브랜치를 만듭니다.
+| 주차 | 내용 | 실습 안내 |
+| --- | --- | --- |
+| 2주차 | FastAPI와 React를 로컬에서 실행 | 아래 로컬 실행 절차 |
+| 3주차 | Dockerfile, Nginx, Compose와 볼륨 | [3주차](docs/week3.md) |
+| 4주차 | Docker Hub, EC2 배포, GitHub Actions | [4주차](docs/week4.md) |
+| 5주차 | Terraform EC2 배포와 ALB·Auto Scaling 선택 시연 | [5주차](docs/week5.md) |
 
-압축 파일에는 `.git/`도 포함되어 있습니다. 압축을 푼 뒤 이 디렉터리에서 Git 명령을 실행합니다.
-
-```bash
-git log --oneline --decorate
-git tag
-git switch -c my-week3 week2
-```
-
-변경한 파일이 있으면 먼저 커밋한 뒤 전환합니다. 원래 브랜치로 돌아갈 때는 `git switch main`을 사용합니다. 태그는 해당 시점의 코드 위치이며, 실제 작업은 새 브랜치에서 진행하면 됩니다.
-
-3주차에서 추가한 파일은 다음 명령으로 확인합니다.
+저장소의 변경 이력은 `git log --oneline --decorate`로 확인합니다. 자기 실습은 새 브랜치에서 시작할 수 있습니다.
 
 ```bash
-git diff --stat week2..week3
+git switch -c my-study
 ```
 
-4주차에서 직접 설정을 추가하려면 `week3` 시점의 코드를 참고합니다. 수정된 완성 코드는 현재 `main`과 `week4-revised` 태그에 있으며 `week4` 태그는 기존 강의 시점을 남겨 둡니다. Actions 실습에서는 자기 공개 GitHub 저장소의 `main`에 설정을 커밋·push합니다.
+Actions 실습에서는 자기 공개 GitHub 저장소의 `main`에 설정을 커밋·push합니다.
+
+## Terraform으로 배포 환경 준비
+
+5주차의 `infra/single/`은 기존 서브넷과 키 페어를 사용해 새 EC2 한 대와 보안 그룹을 만듭니다. 첫 부팅에 Docker 설치, 지정한 Git 커밋의 저장소 준비, 기존 Compose 배포를 실행합니다. 앱 코드는 그대로 사용합니다.
+
+선택 시연인 `infra/scaling/`은 ALB와 Auto Scaling Group을 만듭니다. 데이터 없는 서버로 요청 분산, 희망 대수 변경, 한 대 종료 후 복구를 확인합니다. 두 폴더는 별도의 state를 사용하며 각각 정리합니다.
+
+[5주차 실습 안내](docs/week5.md)에 AWS 로그인, 프리 티어·AMI·키·서브넷 선택, `web_cidrs` 변경 연습, 기존 Actions 연결, 확장 시연, 비용과 `destroy` 절차가 있습니다. 4주차의 수동 EC2는 자동으로 관리 대상에 포함되지 않습니다.
 
 ## EC2 배포와 GitHub Actions
 
@@ -38,7 +37,7 @@ git diff --stat week2..week3
 - `deploy/deploy.sh`: EC2에서 실행하는 배포·응답 확인 명령.
 - `.github/workflows/deploy.yml`: 검사, 이미지 업로드, 배포 순서.
 
-EC2에는 자기 공개 GitHub 저장소를 `~/study-app`으로 clone합니다. 배포는 `~/study-app/deploy`에서 실행하며, 수동 배포의 `deploy.sh`를 자동 배포에서도 사용합니다. 배포용 Compose는 기존 포트·환경 변수·볼륨·healthcheck·시작 순서를 유지하고 `build:`를 `image:`로 바꿉니다. 자동 배포는 GitHub Secrets 다섯 개를 등록한 뒤 사용합니다. 시연 때 바꾼 SSH 인바운드는 종료 후 My IP로 복구합니다. 기존 로컬 실행은 아래와 같습니다.
+EC2에는 자기 공개 GitHub 저장소를 `~/fullstack-study`로 clone합니다. 배포는 `~/fullstack-study/deploy`에서 실행하며, 수동 배포의 `deploy.sh`를 자동 배포에서도 사용합니다. 배포용 Compose는 기존 포트·환경 변수·볼륨·healthcheck·시작 순서를 유지하고 `build:`를 `image:`로 바꿉니다. 자동 배포는 GitHub Secrets 네 개를 등록한 뒤 사용합니다. 시연 때 바꾼 SSH 인바운드는 종료 후 My IP로 복구합니다. 기존 로컬 실행은 아래와 같습니다.
 
 ## Docker로 실행
 
