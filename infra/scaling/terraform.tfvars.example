@@ -1,0 +1,17 @@
+region      = "ap-northeast-2"
+aws_profile = "study"
+
+# 같은 리전의 Ubuntu 24.04 LTS x86_64 AMI로 바꿉니다.
+ami_id        = "ami-REPLACE_ME"
+instance_type = "t3.micro" # 자기 계정의 프리 티어 표시·잔여 혜택 확인
+
+# 같은 VPC, 서로 다른 AZ의 퍼블릭 서브넷 2개로 바꿉니다.
+# 각 서브넷의 라우팅 테이블에 0.0.0.0/0 -> igw-... 경로가 있어야 합니다.
+# ALB용으로 /27 또는 더 큰 주소 범위, 여유 IPv4 8개 이상을 확인합니다.
+subnet_ids = [
+  "subnet-REPLACE_A",
+  "subnet-REPLACE_B",
+]
+
+# 1대로 시작하고, 두 번째 실습에서 2로 바꿉니다.
+desired_count = 1

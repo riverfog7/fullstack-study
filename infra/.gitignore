@@ -1,0 +1,13 @@
+# Local inputs, state and provider cache
+.terraform/
+*.tfvars
+*.tfvars.json
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key

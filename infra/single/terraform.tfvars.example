@@ -1,0 +1,21 @@
+region      = "ap-northeast-2"
+aws_profile = "study"
+
+# 이 리전의 Canonical Ubuntu 24.04 LTS, 64비트(x86) AMI ID로 바꿉니다.
+ami_id = "ami-여기에-선택한-이미지-ID"
+
+# 자기 계정에서 프리 티어 사용 가능으로 표시되는 x86_64 유형을 선택합니다.
+instance_type = "t3.micro"
+key_name      = "study-key" # EC2 콘솔에서 먼저 만든 키 페어
+subnet_id     = "subnet-여기에-퍼블릭-서브넷-ID"
+ssh_cidrs     = ["203.0.113.10/32"] # 내 공인 IP/32로 변경
+web_cidrs     = ["0.0.0.0/0"]
+
+# Actions SSH 시연 때만 ssh_cidrs를 ["0.0.0.0/0"]으로 바꿉니다.
+# 시연 뒤에는 내 IP/32로 되돌려 apply합니다.
+repo_url = "https://github.com/riverfog7/fullstack-study.git"
+repo_ref = "328eed567b4c7a5b80ad0896ab915162fe0cab8b" # 공개 저장소에 이미 있는 4주차 커밋
+
+# 이미 게시한 두 공개 이미지의 계정과 공통 태그를 입력합니다.
+dockerhub_username = "myname"
+image_tag          = "week4-demo"
